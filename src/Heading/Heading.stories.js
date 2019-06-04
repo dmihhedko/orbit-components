@@ -163,9 +163,11 @@ storiesOf("Heading", module)
 
       const customTitle = text("Title", "Orbit design system");
       const dataA11ySection = text("dataA11ySection", "ID-OF-SECTION");
+      const id = text("id", "ID");
       const spaceAfter = select("spaceAfter", [null, ...Object.values(SPACINGS_AFTER)]);
       return (
         <Heading
+          id={id}
           element={element}
           dataA11ySection={dataA11ySection}
           type={type}
