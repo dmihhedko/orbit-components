@@ -179,6 +179,18 @@ function Slider({ label, description, defaultValue, min = 1, max = 100, step = 1
       window.removeEventListener("resize", calculateWidth);
     };
   });
+
+  const handle = (lValue, lHandleMouseDown, lHandleOnFocus) => (
+    <Handle
+      tabIndex={0}
+      valueMax={max}
+      valueMin={min}
+      valueNow={lValue}
+      onMouseDown={lHandleMouseDown}
+      onFocus={lHandleOnFocus}
+      parentWidth={parentWidth}
+    />
+  );
   return (
     <StyledSlider>
       {label && <Heading type="title4">{label}</Heading>}
@@ -193,30 +205,9 @@ function Slider({ label, description, defaultValue, min = 1, max = 100, step = 1
           onMouseDown={handleBarMouseDown}
           {...calculateBarPosition(parentWidth, value, max, min)}
         />
-        {/* abstact */}
-        {Array.isArray(value) ? (
-          value.map((handle, i) => (
-            <Handle
-              tabIndex={0}
-              valueMax={max}
-              valueMin={min}
-              valueNow={value[i]}
-              onMouseDown={handleMouseDown(i)}
-              onFocus={handleOnFocus(i)}
-              parentWidth={parentWidth}
-            />
-          ))
-        ) : (
-          <Handle
-            tabIndex={0}
-            valueMax={max}
-            valueMin={min}
-            valueNow={value}
-            onMouseDown={handleMouseDown()}
-            onFocus={handleOnFocus()}
-            parentWidth={parentWidth}
-          />
-        )}
+        {Array.isArray(value)
+          ? value.map((x, i) => handle(value[i], handleMouseDown(i), handleOnFocus(i)))
+          : handle(value, handleMouseDown(), handleOnFocus())}
       </StyledSliderInput>
     </StyledSlider>
   );
