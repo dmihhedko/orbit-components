@@ -1,5 +1,5 @@
 // @flow
-import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 
 import Text from "../Text";
@@ -24,220 +24,202 @@ const StyledSliderInput = styled.div`
   margin-top: 16px;
 `;
 
-class Slider extends React.PureComponent {
-  container = React.createRef();
+function Slider({ label, description, defaultValue, min = 1, max = 100, step = 1 }) {
+  const container = useRef();
+  const bar = useRef();
+  const [value, setValue] = useState(defaultValue || 1);
+  const [handleIndex, setHandleIndex] = useState(undefined);
+  const [parentWidth, setParentWidth] = useState(undefined);
+  const [values, setValues] = useState([]);
 
-  bar = React.createRef();
+  let timeout;
 
-  constructor(props) {
-    super(props);
-    this.state = {
-      value: this.props.defaultValue || 1,
-      handleIndex: null,
-      parentWidth: null,
-      values: [],
-    };
-  }
-
-  componentDidMount() {
-    this.timeout = setTimeout(this.calculateWidth, 10);
-    window.addEventListener("resize", this.calculateWidth);
-  }
-
-  calculateWidth = () => {
-    const containerRect = getBoundingClientRect(this.container);
+  const calculateWidth = () => {
+    const containerRect = getBoundingClientRect(container);
     if (containerRect) {
-      this.setState({ parentWidth: containerRect.width });
+      setParentWidth(containerRect.width);
     }
   };
 
-  pauseEvent = e => {
+  const pauseEvent = e => {
     if (e.stopPropagation) e.stopPropagation();
     if (e.preventDefault) e.preventDefault();
   };
 
-  alignValueToStep = value => {
-    const { step = 1 } = this.props;
-    if (step === 1) return value;
-    const gap = value % step;
-    if (gap === 0) return value;
+  const alignValueToStep = val => {
+    if (step === 1) return val;
+    const gap = val % step;
+    if (gap === 0) return val;
     if (gap * 2 >= step) {
-      return value - gap + step;
+      return val - gap + step;
     }
-    return value - gap;
+    return val - gap;
     // TODO: when current value is 1 and next should be 6, needs to be 5
   };
 
-  alignValueToMaxMin = value => {
-    const { max = 100, min = 1 } = this.props;
-    if (value > max) {
+  const alignValueToMaxMin = val => {
+    if (val > max) {
       return max;
     }
-    if (value < min) {
+    if (val < min) {
       return min;
     }
-    return value;
+    return val;
   };
 
-  alignValue = newValue => this.alignValueToMaxMin(this.alignValueToStep(newValue));
+  const alignValue = newValue => alignValueToMaxMin(alignValueToStep(newValue));
 
-  replaceValue = (newValue, index) => {
-    const { value } = this.state;
+  const replaceValue = (newValue, index) => {
     if (index == null || !Array.isArray(value)) return newValue;
     return value.map((item, key) => (key === index ? newValue : item));
   };
 
-  moveValueByStep = step => {
-    const { value, handleIndex } = this.state;
+  const moveValueByStep = lStep => {
     if (Array.isArray(value)) {
-      const newValue = this.replaceValue(
-        this.alignValue(value[Number(handleIndex)] + step),
+      const newValue = replaceValue(
+        alignValue(value[Number(handleIndex)] + lStep),
         Number(handleIndex),
       );
-      this.setState({ value: newValue });
+      setValue(newValue);
     } else {
-      const newValue = this.alignValue(value + step);
-      this.setState({ value: newValue });
+      const newValue = alignValue(value + lStep);
+      setValue(newValue);
     }
   };
 
-  handleKeyDown = event => {
+  const handleKeyDown = event => {
     if (event.ctrlKey || event.shiftKey || event.altKey) return;
-    const { step = 1, min = 1, max = 100 } = this.props;
+
     if (event.keyCode === KEY_CODE_MAP.ARROW_UP || event.keyCode === KEY_CODE_MAP.ARROW_RIGHT) {
-      this.pauseEvent(event);
-      this.moveValueByStep(step);
+      pauseEvent(event);
+      moveValueByStep(step);
     }
     if (event.keyCode === KEY_CODE_MAP.ARROW_DOWN || event.keyCode === KEY_CODE_MAP.ARROW_LEFT) {
-      this.pauseEvent(event);
-      this.moveValueByStep(-step);
+      pauseEvent(event);
+      moveValueByStep(-step);
     }
     if (event.keyCode === KEY_CODE_MAP.HOME) {
-      this.pauseEvent(event);
-      this.setState({ value: min });
+      pauseEvent(event);
+      setValue(min);
     }
     if (event.keyCode === KEY_CODE_MAP.END) {
-      this.pauseEvent(event);
-      this.setState({ value: max });
+      pauseEvent(event);
+      setValue(max);
     }
   };
 
-  handleBlur = () => {
-    window.removeEventListener("keydown", this.handleKeyDown);
-    window.removeEventListener("focusout", this.handleBlur);
+  const handleBlur = () => {
+    window.removeEventListener("keydown", handleKeyDown);
+    window.removeEventListener("focusout", handleBlur);
   };
 
-  handleOnFocus = i => e => {
-    this.setState({ handleIndex: i });
-    this.pauseEvent(e);
-    window.addEventListener("keydown", this.handleKeyDown);
-    window.addEventListener("focusout", this.handleBlur);
+  const handleOnFocus = i => e => {
+    setHandleIndex(i);
+    pauseEvent(e);
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("focusout", handleBlur);
   };
 
-  calculateValueFromPosition = pageX => {
-    const { max = 100, min = 1 } = this.props;
-    const barRect = getBoundingClientRect(this.bar);
+  const calculateValueFromPosition = pageX => {
+    const barRect = getBoundingClientRect(bar);
     const mousePosition = pageX - barRect.left;
     const positionRatio = mousePosition / barRect.width;
     return Math.round((max - min) * positionRatio + min);
   };
 
-  findClosestKey = goal =>
-    this.state.value.reduce((acc, curr, index) => {
-      return Math.abs(curr - goal) < Math.abs(this.state.value[acc] - goal) ? index : acc;
+  const findClosestKey = goal =>
+    value.reduce((acc, curr, index) => {
+      return Math.abs(curr - goal) < Math.abs(value[acc] - goal) ? index : acc;
     }, 0);
 
-  handleBarMouseDown = event => {
-    const { value } = this.state;
-    const newValue = this.calculateValueFromPosition(event.pageX);
+  const handleBarMouseDown = event => {
+    const newValue = calculateValueFromPosition(event.pageX);
     if (Array.isArray(value)) {
-      const index = this.findClosestKey(newValue);
-      const replacedValue = this.replaceValue(this.alignValue(newValue), index);
-      this.setState({ value: replacedValue });
+      const index = findClosestKey(newValue);
+      const replacedValue = replaceValue(alignValue(newValue), index);
+      setValue(replacedValue);
     } else {
-      this.setState({ value: this.alignValue(newValue) });
+      setValue(alignValue(newValue));
     }
   };
 
-  handleMouseMove = event => {
-    const { handleIndex, value, values } = this.state;
-
-    const newValue = this.calculateValueFromPosition(event.pageX);
-    this.setState({ values: [...values, newValue] });
+  const handleMouseMove = event => {
+    const newValue = calculateValueFromPosition(event.pageX);
+    setValues([...values, newValue]);
     if (Array.isArray(value)) {
-      const replacedValue = this.replaceValue(this.alignValue(newValue), Number(handleIndex));
-      this.setState({ value: replacedValue });
+      const replacedValue = replaceValue(alignValue(newValue), Number(handleIndex));
+      setValue(replacedValue);
     } else {
-      this.setState({ value: this.alignValue(newValue) });
+      setValue(alignValue(newValue));
     }
   };
 
-  handleMouseUp = () => {
-    window.removeEventListener("mousemove", this.handleMouseMove);
-    window.removeEventListener("mouseup", this.handleMouseUp);
+  const handleMouseUp = () => {
+    window.removeEventListener("mousemove", handleMouseMove);
+    window.removeEventListener("mouseup", handleMouseUp);
   };
 
-  handleMouseDown = i => event => {
+  const handleMouseDown = i => event => {
     // just allow left-click
     if (event.button === 0 && event.buttons !== 2) {
-      if (i) this.setState({ handleIndex: i });
-      window.addEventListener("mousemove", this.handleMouseMove);
-      window.addEventListener("mouseup", this.handleMouseUp);
-      this.pauseEvent(event);
+      if (i) setHandleIndex(i);
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", handleMouseUp);
+      pauseEvent(event);
     }
   };
 
-  componentWillUnmount() {
-    if (this.timeout) {
-      clearTimeout(this.timeout);
-    }
-    window.removeEventListener("resize", this.calculateWidth);
-  }
-
-  render() {
-    const { label, description, min = 1, max = 100 } = this.props;
-    const { value, parentWidth } = this.state;
-    return (
-      <StyledSlider>
-        {label && <Heading type="title4">{label}</Heading>}
-        {description && (
-          <Text type="secondary" size="small">
-            {description}
-          </Text>
-        )}
-        <StyledSliderInput ref={this.container}>
-          <Bar
-            ref={this.bar}
-            onMouseDown={this.handleBarMouseDown}
-            {...calculateBarPosition(parentWidth, value, max, min)}
-          />
-          {Array.isArray(value) ? (
-            value.map((handle, i) => (
-              <Handle
-                tabIndex={0}
-                valueMax={max}
-                valueMin={min}
-                valueNow={value[i]}
-                onMouseDown={this.handleMouseDown(i)}
-                onFocus={this.handleOnFocus(i)}
-                parentWidth={parentWidth}
-              />
-            ))
-          ) : (
+  useEffect(() => {
+    timeout = setTimeout(calculateWidth, 10);
+    window.addEventListener("resize", calculateWidth);
+    return () => {
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+      window.removeEventListener("resize", calculateWidth);
+    };
+  });
+  return (
+    <StyledSlider>
+      {label && <Heading type="title4">{label}</Heading>}
+      {description && (
+        <Text type="secondary" size="small">
+          {description}
+        </Text>
+      )}
+      <StyledSliderInput ref={container}>
+        <Bar
+          ref={bar}
+          onMouseDown={handleBarMouseDown}
+          {...calculateBarPosition(parentWidth, value, max, min)}
+        />
+        {/* abstact */}
+        {Array.isArray(value) ? (
+          value.map((handle, i) => (
             <Handle
               tabIndex={0}
               valueMax={max}
               valueMin={min}
-              valueNow={value}
-              onMouseDown={this.handleMouseDown()}
-              onFocus={this.handleOnFocus()}
+              valueNow={value[i]}
+              onMouseDown={handleMouseDown(i)}
+              onFocus={handleOnFocus(i)}
               parentWidth={parentWidth}
             />
-          )}
-        </StyledSliderInput>
-      </StyledSlider>
-    );
-  }
+          ))
+        ) : (
+          <Handle
+            tabIndex={0}
+            valueMax={max}
+            valueMin={min}
+            valueNow={value}
+            onMouseDown={handleMouseDown()}
+            onFocus={handleOnFocus()}
+            parentWidth={parentWidth}
+          />
+        )}
+      </StyledSliderInput>
+    </StyledSlider>
+  );
 }
 
 export default Slider;
